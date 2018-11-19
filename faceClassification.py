@@ -1,9 +1,11 @@
 import cv2
 import os
 from spectral import *
-
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 img=[]
-img2=[]
 
 path = "../Dataset/"
 
@@ -55,54 +57,124 @@ coordRectanglesCheveux.append([388,191,450,235])
 coordRectanglesCheveux.append([472,277,508,301])
 coordRectanglesCheveux.append([374,67,402,117])
 
-moyenneLambdaPeau=[] #Tableau de 33 longueurs d'onde moyennes correspondant à la peau (moyenne à la longueur d'onde 1,2,3,..,33)
-moyenneLambdaCheveux=[]
-
-##def rect( img, rect ): #renvoie la sous-image définie par le rectangle construit à partir de x1, y1 (en haut a gauche) et x2,y2 (en bas a droite)
-##   imgRect=[]
-##   for i in range(rect[0]，rect[2]):
-##       for j in range(rect[1]，rect[3]):
-##           imgRect.append(img[i,j])
-##   return [imgRect]
 
 def getPixel( img, x, y, channel):
     return img[x, y, channel]
 
-def mean_rect( img, x1, y1, x2, y2 ): 
-   return cv2.mean(img[x1:x2,y1:y2])[0]
+def mean_StdDev_rect( img, rect ): 
+   return cv2.meanStdDev(img[rect[0]:rect[2],rect[1]:rect[3]])
 
-for i in range(0,33):
-    moyenneLambdaPeau.append(0)
-for i in range(0,33):
-    moyenneLambdaCheveux.append(0)
-    
-for i in selectionApprentissagePeau:    
-    for x in range(1,34): #Jusqu'à 34 car on va jusqu'à n-1. On a reelement 33 images par dossier
-        if x < 10:
-            img.append(cv2.imread(path + i + "/F_0" + str(x) + ".png"))
-        else:
-            img.append(cv2.imread(path + i + "/F_" + str(x) + ".png"))    
-        #cv2.imshow('myImage', img[x-1])
+def rect( img, rect ): #renvoie la sous-image définie par le rectangle construit à partir de x1, y1 (en haut a gauche) et x2,y2 (en bas a droite)
+   imgRect=[]
+   for i in range(rect[0],rect[2]):
+       for j in range(rect[1],rect[3]):
+           imgRect.append(img[i,j])
+   return [imgRect]
 
-for i in selectionApprentissageCheveux:    
-    for x in range(1,34): #Jusqu'à 34 car on va jusqu'à n-1. On a reelement 33 images par dossier
-        if x < 10:
-            img2.append(cv2.imread(path + i + "/F_0" + str(x) + ".png"))
-        else:
-            img2.append(cv2.imread(path + i + "/F_" + str(x) + ".png"))    
-        #cv2.imshow('myImage', img[x-1])
+def getPixel( img, x, y, channel):
+    return img[x, y, channel]
 
-for i in range(0,33):
-    for j in range(0, len(selectionApprentissagePeau)):
-        #TODO: iterer sur tableau correspondant à rectangle
-        moyenneLambdaPeau[i] += mean_rect(img[i+(33*j)], coordRectanglesPeau[j][0], coordRectanglesPeau[j][1], coordRectanglesPeau[j][2], coordRectanglesPeau[j][3]) 
-    moyenneLambdaPeau[i] = moyenneLambdaPeau[i]/len(selectionApprentissagePeau)
-    print(moyenneLambdaPeau[i])
+moyenneLambdaPeau=np.zeros(33)
+stdDevLambdaPeau=np.zeros(33)
+moyenneLambdaCheveux=np.zeros(33)
+stdDevLambdaCheveux=np.zeros(33)
+
+for i in list(set(selectionApprentissagePeau).union(set(selectionApprentissageCheveux))):
+   order_i_for_Peau=0
+   order_i_for_Cheveux=0
+   for x in range(1,34): #Jusqu'à 34 car on va jusqu'à n-1. On a reelement 33 images par dossier
+      if x < 10:
+         img.append(cv2.imread(path + i + "/F_0" + str(x) + ".png"))
+      else:
+         img.append(cv2.imread(path +i + "/F_" + str(x) + ".png"))
+      if(i in selectionApprentissagePeau):   
+      	 meanPeau,StdDevPeau=mean_StdDev_rect(img[x-1], coordRectanglesPeau[order_i_for_Peau])
+      	 moyenneLambdaPeau[x-1]+= meanPeau[0]
+      	 stdDevLambdaPeau[x-1]+= StdDevPeau[0]
+
+      if(i in selectionApprentissageCheveux):   
+      	 meanCheveux,StdDevCheveux=mean_StdDev_rect(img[x-1], coordRectanglesCheveux[order_i_for_Cheveux])
+      	 moyenneLambdaCheveux[x-1]+= meanCheveux[0]
+      	 stdDevLambdaCheveux[x-1]+= StdDevCheveux[0]           
+   img.clear()
+   if(i in selectionApprentissagePeau):
+   	 moyenneLambdaPeau[order_i_for_Peau] = moyenneLambdaPeau[order_i_for_Peau]/len(selectionApprentissagePeau)
+   	 stdDevLambdaPeau[order_i_for_Peau] = stdDevLambdaPeau[order_i_for_Peau]/len(selectionApprentissagePeau)
+   	 order_i_for_Peau+=1
+   if(i in selectionApprentissageCheveux):
+   	 moyenneLambdaCheveux[order_i_for_Cheveux] = moyenneLambdaCheveux[order_i_for_Cheveux]/len(selectionApprentissageCheveux)
+   	 stdDevLambdaCheveux[order_i_for_Cheveux] = stdDevLambdaCheveux[order_i_for_Cheveux]/len(selectionApprentissageCheveux)
+   	 order_i_for_Cheveux+=1
 
 
-for i in range(0,33):
-    for j in range(0, len(selectionApprentissageCheveux)):
-        #TODO: iterer sur tableau correspondant à rectangle
-        moyenneLambdaCheveux[i] += mean_rect(img[i+(33*j)], coordRectanglesCheveux[j][0], coordRectanglesCheveux[j][1], coordRectanglesCheveux[j][2], coordRectanglesCheveux[j][3]) 
-    moyenneLambdaCheveux[i] = moyenneLambdaCheveux[i]/len(selectionApprentissageCheveux)
-    print(moyenneLambdaCheveux[i])
+#tableau moyenne
+tabMoyenne = []
+for i in range(0,len(moyenneLambdaPeau)):
+  tabMoyenne.append([moyenneLambdaPeau[i],moyenneLambdaCheveux[i]])   
+tabMoyenne = np.transpose(tabMoyenne)
+#instanciation pour normaliser les données
+sc = StandardScaler()
+#transformation – centrage-réduction
+tabMoyenne = sc.fit_transform(tabMoyenne)
+print(tabMoyenne)
+#instanciation pour la création de l'acp
+acp = PCA(svd_solver='full')
+print("==============")
+print(acp.fit_transform(tabMoyenne))
+print("==============")
+print(acp.explained_variance_ratio_*100)
+
+plt.figure(1)
+ax1=plt.subplot(411)
+plt.plot(range(1,34),moyenneLambdaPeau,label="moyenneLambdaPeau")
+plt.ylabel('niveau de gris')
+plt.xlabel('longueur d\'onde')
+plt.ylim((0,2000))
+plt.legend(loc='upper right')
+plt.grid(True)
+
+ax2=plt.subplot(412)
+plt.plot(range(1,34),stdDevLambdaPeau,label="stdDevLambdaPeau")
+plt.ylabel('niveau de gris')
+plt.xlabel('longueur d\'onde')
+plt.ylim((0,500))
+plt.legend(loc='upper right')
+plt.grid(True)
+
+ax3=plt.subplot(413)
+plt.plot(range(1,34),moyenneLambdaCheveux,label="moyenneLambdaCheveux")
+plt.ylabel('niveau de gris')
+plt.xlabel('longueur d\'onde')
+plt.ylim((0,2000))
+plt.legend(loc='upper right')
+plt.grid(True)
+
+ax4=plt.subplot(414)
+plt.plot(range(1,34),stdDevLambdaCheveux,label="stdDevLambdaCheveux")
+plt.ylabel('niveau de gris')
+plt.xlabel('longueur d\'onde')
+plt.ylim((0,500))
+plt.legend(loc='upper right')
+plt.grid(True)
+
+plt.show() 
+#x1 = [0,5,6,8,9,1,3,1,5,3,5,8,9,4,6,3,5,6,3,2]
+#x2 = np.linspace(0, 3 * np.pi, 50)
+#x3 = np.linspace(0, 4 * np.pi, 50)
+#plt.figure(1)
+
+#ax1 = plt.subplot(311)
+#plt.plot(range(len(x1)), x1,label="line1")
+#plt.plot(range(len(x2)), x2,label="line2")
+#plt.ylabel('y_name') 
+#plt.legend(loc='upper right')
+#plt.grid(True)
+
+
+#ax2 = plt.subplot(312)
+#plt.plot(x2, np.sin(x2)) 
+
+#ax3 = plt.subplot(313)
+#plt.plot(x3, np.sin(x3)) 
+#plt.xlabel('x_name')
+#plt.show() 
